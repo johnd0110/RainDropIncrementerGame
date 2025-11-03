@@ -11,9 +11,17 @@ def convertListOfTuplesToList(listOfTuples):
 def getNumSign(num):
     return 0 if num == 0 else math.copysign(1, num)
 
+# An iterator that performs a walk along a randomly generated rectangle's perimeter
+# Starts at the top left vertice and walks clockwise around the perimeter,
+# outputting a random point forward in the clockwise direction at each iteration until it reaches the top left vertice at which points it finishes
 class rectangleWalker:
     minimumWalkDistance = 20
     def __init__(self, canvasWidth, canvasHeight):
+        """
+        Initializes a rectangle walker iterator by randomly generating the four vertices of a rectangle relative to the provided canvas width and height.
+        :param canvasWidth: Width of a canvas in pixels (Typically from a tkinter function like winfo_width())
+        :param canvasHeight: Height of a canvas in pixels (Typically from a tkinter function like winfo_height())
+        """
         self.canvasWidth = canvasWidth
         self.canvasHeight = canvasHeight
         self.quarterCanvasWidth = self.canvasWidth // 4
@@ -40,6 +48,10 @@ class rectangleWalker:
         return self
 
     def __next__(self):
+        """
+        Determines the next point that is a random distance away from the previous iteration's point in the clockwise direction on the rectangle's perimeter
+        :return: A random point in the clockwise direction along the rectangle's perimeter
+        """
         # TODO: Fix the walk so that it doesn't have the chance to walk the entire length of the rectangle side in one go
         def progressWalk(directionX, directionY):
             if (directionX or directionY) not in (-1, 0, 1):
@@ -90,6 +102,7 @@ class rectangleWalker:
 
         return coordinate
 
+# Generates a rain cloud and provides functions related to the rain clouds such as animation
 class rainCloud:
     cloudTagPrefix = "cloud"
     maxCloudTagIds = 100
@@ -100,6 +113,10 @@ class rainCloud:
     driftMovementDelay = 500 #In ms
 
     def __init__(self, canvas):
+        """
+        Generates a rain cloud drawing on the provided canvas
+        :param canvas: A tkinter canvas to draw the rain cloud on
+        """
         self.dirty = False
         self.canvas = canvas
         self.cloudTagId = next(rainCloudTagGenerator)
@@ -157,6 +174,13 @@ class rainCloud:
 
     @staticmethod
     def tagGenerator(tagPrefix, maxTagCount):
+        """
+        Helper function that will provide a generator that generates a tag to be used for a tkinter drawing based on the provided tag prefix and maximum tag count.
+        Generated tags follow the format of [tagPrefix][#] where # is a randomly generated ID between 0 and maxTagCount. It ensures that there are no ID collisions.
+        :param tagPrefix: A prefix for the tags this generator provides i.e. "Cloud" or "Thunder"
+        :param maxTagCount: Upper limit of the tag Id #s. There can only be at most maxTagCount ids for a given prefix.
+        :return:
+        """
         existingTags = []
 
         def newTag(generateNewTag):
@@ -178,6 +202,10 @@ class rainCloud:
             #print(f"After Generating new cloud tag. Existing Cloud Tags: {existingCloudTags}")
 
     def animateDrift(self):
+        """
+        Animates the given cloud instance so that it drifts in either direction horizontally randomly.
+        :return: nothing
+        """
         cloudBoundingBox = self.canvas.bbox(self.cloudTagId)
         if cloudBoundingBox == "":
             raise ValueError("No Cloud Bounding Box found.")
@@ -189,6 +217,7 @@ class rainCloud:
         else:
             self.canvas.move(self.cloudTagId, random.randint(0, rainCloud.driftMovementAmount) * random.randrange(-1, 2, 1), 0)
 
+        # Schedule itself indefinitely to keep the animation going
         self.canvas.after(random.randint(rainCloud.driftMovementDelay//2, rainCloud.driftMovementDelay), self.animateDrift)
 
     def retrieveRandomCoordinateAlongCloudBottom(self):
@@ -196,6 +225,11 @@ class rainCloud:
         return (random.randint(int(cloudRectCoords[0]), int(cloudRectCoords[2])), int(cloudRectCoords[-1]))
 
     def rainDropAnimation(self, rainDropId):
+        """
+        Generate a rain drop drawing and animate it falling from the rain cloud instance
+        :param rainDropId: Rain drop drawing id. If nothing is provided then the function generates a new rain drop to draw and animate.
+        :return: nothing
+        """
         if rainDropId is None:
             # If the cloud has been set to be cleaned up, don't create any more rain drops.
             if self.dirty:
@@ -232,6 +266,10 @@ class rainCloud:
                 _ = self.rainDropDict.pop(rainDropId)
 
     def drawThunder(self):
+        """
+        Generate a thunder drawing for the rain cloud instance
+        :return: nothing
+        """
         if self.dirty: return
         startingXCoord, startingYCoord = self.retrieveRandomCoordinateAlongCloudBottom()
 
@@ -264,6 +302,7 @@ class rainCloud:
 rainCloudTagGenerator = rainCloud.tagGenerator(rainCloud.cloudTagPrefix, rainCloud.maxCloudTagIds)
 thunderTagGenerator = rainCloud.tagGenerator(rainCloud.cloudTagPrefix, rainCloud.maxCloudTagIds)
 
+# Main class that drives the game
 class rainDropIncrementer:
     startingColumn = 0
     startingRow = 0
@@ -275,29 +314,40 @@ class rainDropIncrementer:
     maxNumOfClouds = 4
     rainDropThunderThreshold = 5
     def __init__(self, tkRoot):
+        """
+        Initializes the rain drop incrementer game window.
+        :param tkRoot: A tkinter Tk() object
+        """
         self.root = tkRoot
         self.root.title("Rain Drop")
 
         self.mainframe = ttk.Frame(self.root, padding=(3, 3, 12, 12))
         self.mainframe.grid(column=rainDropIncrementer.startingColumn, row=rainDropIncrementer.startingRow, sticky=(N, W, E, S))
 
+        # Set up the canvas with the rain clouds and rain drops
         self.cloudCanvas = Canvas(self.mainframe, width=500, height=500)
         self.cloudCanvas.grid(column=rainDropIncrementer.startingColumn+1,row=rainDropIncrementer.startingRow+1, sticky=(W,E), columnspan=4)
 
+        # Update the canvas so that the canvas height and width is set
         self.cloudCanvas.update()
+        # Generate clouds for the game window and schedule up the cleanup routine
         self.clouds = {}
         self.cleanupAndGenerateClouds()
 
+        # Set up rain drop counter
         ttk.Label(self.mainframe, text="Rain Drops:").grid(column=rainDropIncrementer.startingColumn+1, row=rainDropIncrementer.startingRow+2, sticky=(E))
         self.rainDropCount = IntVar()
         self.rainDropCount.set(0)
         ttk.Label(self.mainframe, textvariable=self.rainDropCount).grid(column=rainDropIncrementer.startingColumn+2, row=rainDropIncrementer.startingRow+2, sticky=(W))
 
+        # Set up the rain drop rate calculation counter
         self.rainDropRate = DoubleVar()
         self.rainDropRate.set(0)
         ttk.Label(self.mainframe, textvariable=self.rainDropRate).grid(column=rainDropIncrementer.startingColumn+3, row=rainDropIncrementer.startingRow+2, sticky=(E))
         ttk.Label(self.mainframe, text="Rain Drops/s").grid(column=rainDropIncrementer.startingColumn+4, row=rainDropIncrementer.startingRow+2, sticky=(W))
         self.CalculateAndSetRainDropRate()
+
+        # Schedule up the thunder generation routine
         self.generateThunder()
 
         ttk.Button(self.mainframe, text="Increment", command=self.Incrementer).grid(column=rainDropIncrementer.startingColumn+1, row=rainDropIncrementer.startingRow+3, sticky=(E, W), columnspan=4)
@@ -312,6 +362,15 @@ class rainDropIncrementer:
         self.root.bind('<Return>', self.Incrementer)
 
     def cleanupAndGenerateClouds(self):
+        """
+        Rain cloud cleanup/generation routine.
+
+        Any rain clouds that have been marked for clean up get processed here.
+
+        After clean up we generate new clouds as long as the maximum number of clouds do not currently exist on the canvas.
+
+        :return: nothing
+        """
         cloudsToCleanup = []
         for cloudTagId in self.clouds:
             cloud = self.getCloudForCloudTagId(cloudTagId)
@@ -329,6 +388,10 @@ class rainDropIncrementer:
         self.cloudCanvas.after(250, self.cleanupAndGenerateClouds)
 
     def generateNewClouds(self):
+        """
+        Generates a random amount of brand-new clouds to display on the game canvas up to an upper limit
+        :return: nothing
+        """
         maxAmountofCloudsToGenerate = rainDropIncrementer.maxNumOfClouds - len(self.clouds)
 
         if maxAmountofCloudsToGenerate < 0:
@@ -342,12 +405,22 @@ class rainDropIncrementer:
         self.clouds[aRainCloud.cloudTagId] = aRainCloud
 
     def getRandomCleanCloud(self):
+        """
+        Retrieves a cloud that has yet to be marked for cleanup.
+        :return: A cloud that has not been marked dirty.
+        """
         return random.choice([cloud for cloud in self.clouds.values() if not cloud.dirty])
 
     def getCloudForCloudTagId(self, cloudTagId):
         return self.clouds[cloudTagId]
 
     def CalculateAndSetRainDropRate(self, previousRainDropAmount=0, previousTimestamp=None):
+        """
+        Rain drop rate calculation routine
+        :param previousRainDropAmount: Prior recorded rain drop amount for determining the difference in rain drops generated
+        :param previousTimestamp: Last recorded timestamp for calculating elapsed time
+        :return: nothing
+        """
         currentTimeStamp = time.time()
         currentRainDropAmount = self.rainDropCount.get()
         if previousTimestamp is not None:
@@ -356,11 +429,20 @@ class rainDropIncrementer:
         self.root.after(1000, self.CalculateAndSetRainDropRate, currentRainDropAmount, currentTimeStamp)
 
     def generateThunder(self):
+        """
+        Thunder drawing routine.
+        :return: nothing
+        """
         if self.rainDropRate.get() >= rainDropIncrementer.rainDropThunderThreshold:
             self.getRandomCleanCloud().drawThunder()
         self.root.after(1000, self.generateThunder)
 
     def Incrementer(self, *args):
+        """
+        Increments the rain drop count and generates a rain drop drawing and animation.
+        :param args: Arguments provided by tkinter
+        :return: nothing
+        """
         try:
             self.rainDropCount.set(self.rainDropCount.get() + 1)
             self.getRandomCleanCloud().rainDropAnimation(None)
